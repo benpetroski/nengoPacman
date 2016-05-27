@@ -66,29 +66,54 @@ class GreedyAgent(Agent):
 
 class NengoAgent(Agent):
     def __init__(self):
-        T = 1.               # duration of simulation
-        tau_ens_probe = .01  # Synapse param when creating Probes of Ensembles
-        in_fun = lambda t: np.sin(2*np.pi*t)  # input function to your network
-        N = 100  # Number of neurons in each Ensemble
+        # [0,1,2,3] => [north,east,south,west]
+        N = 50  # number of neurons per ensemble
+        tau = 0.01  # synapse time constant for probe
+        self.T = 1  # length of nengo simulation
 
-        self.network = nengo.Network()
-        with self.network:
-            ensemble = nengo.Ensemble(N, dimensions=1)
-            stimulator = nengo.Node(in_fun)
-            nengo.Connection(stimulator, ensemble)
-            ensemble_two = nengo.Ensemble(N, dimensions=1)
-            def square(x):
-                return np.square(x)
-            nengo.Connection(ensemble, ensemble_two, function=square)
-            self.probe = nengo.Probe(ensemble_two, synapse=tau_ens_probe)
-            self.probe_in = nengo.Probe(ensemble, synapse=tau_ens_probe)
+        self.model = nengo.Network()
+        input_state = np.zeros([4, 4])
+        with self.model:
+            stim = nengo.Node(lambda t: input_state)  # [north,east,south,west] by [ghosts,food,power,wall]
+            powered_up = nengo.Node(1)  # -1 if powered up, 1 if not
+            output = nengo.Node(size_out=4)
 
-        self.sim = nengo.Simulator(self.network)
-        self.sim.run(T)
-        input_ens, A = nengo.utils.ensemble.tuning_curves(ensemble, self.sim)
+            cost_north = nengo.Ensemble(N, dimensions=5)
+            cost_east = nengo.Ensemble(N, dimensions=5)
+            cost_south = nengo.Ensemble(N, dimensions=5)
+            cost_west = nengo.Ensemble(N, dimensions=5)
 
+            nengo.Connection(stim[0, :], cost_north[0:3])
+            nengo.Connection(powered_up, cost_north[4])
+
+            nengo.Connection(stim[1, :], cost_east[0:3])
+            nengo.Connection(powered_up, cost_east[4])
+
+            nengo.Connection(stim[2, :], cost_south[0:3])
+            nengo.Connection(powered_up, cost_south[4])
+
+            nengo.Connection(stim[3, :], cost_west[0:3])
+            nengo.Connection(powered_up, cost_west[4])
+
+            def cost_fun(state, powered):
+                # state= [ghosts,food,power,wall]
+                return 100*state[3] + powered*10*state[0] - 2*state[1] - 5*state[2]
+
+            nengo.Connection(cost_north, output[0], function=cost_fun)
+            nengo.Connection(cost_east, output[1], function=cost_fun)
+            nengo.Connection(cost_south, output[2], function=cost_fun)
+            nengo.Connection(cost_west, output[3], function=cost_fun)
+
+            self.output_cost = nengo.Probe(output, synapse=tau)
+
+        self.sim = nengo.Simulator(self.model)
+
+        # should only need to set stim.output= lambda t: input_state for each new board state and then sim.run(T,progress_bar= False) in the getAction method
+        # pretty sure we only need one call to sim= nengo.Simulator(model). Will need to pass model (for model.stim) and sim to getAction method somehow
 
     def getAction(self, state):
+        self.sim.run(self.T, progress_bar=False)
+
         self.t = self.sim.trange()
         plt.ion()
         plt.plot(self.t, self.sim.data[self.probe])
@@ -97,15 +122,18 @@ class NengoAgent(Agent):
         plt.draw()
         plt.show()
 
-        legal = state.getLegalPacmanActions()
-        current = state.getPacmanState().configuration.direction
-        if current == Directions.STOP: current = Directions.NORTH
-        left = Directions.RIGHT[current]
-        if left in legal: return left
-        if current in legal: return current
-        if Directions.RIGHT[left] in legal: return Directions.RIGHT[left]
-        if Directions.LEFT[current] in legal: return Directions.LEFT[current]
-        return Directions.STOP
+        print self.sim.data[self.output_cost]
+
+
+        # legal = state.getLegalPacmanActions()
+        # current = state.getPacmanState().configuration.direction
+        # if current == Directions.STOP: current = Directions.NORTH
+        # left = Directions.RIGHT[current]
+        # if left in legal: return left
+        # if current in legal: return current
+        # if Directions.RIGHT[left] in legal: return Directions.RIGHT[left]
+        # if Directions.LEFT[current] in legal: return Directions.LEFT[current]
+        # return Directions.STOP
 
 
 def scoreEvaluation(state):
