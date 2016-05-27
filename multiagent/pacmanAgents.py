@@ -74,7 +74,12 @@ class NengoAgent(Agent):
         self.model = nengo.Network()
         input_state = np.zeros([4, 4])
         with self.model:
-            stim = nengo.Node(lambda t: input_state)  # [north,east,south,west] by [ghosts,food,power,wall]
+            # [north,east,south,west] by [ghosts,food,power,wall]
+			ghosts= nengo.Node(lambda t: input_state[:,0])
+			food= nengo.Node(lambda t: input_state[:,1])
+			power= nengo.Node(lambda t: input_state[:,2])
+			wall= nengo.Node(lambda t: input_state[:,3])
+			
             powered_up = nengo.Node(1)  # -1 if powered up, 1 if not
             output = nengo.Node(size_out=4)
 
@@ -83,16 +88,28 @@ class NengoAgent(Agent):
             cost_south = nengo.Ensemble(N, dimensions=5)
             cost_west = nengo.Ensemble(N, dimensions=5)
 
-            nengo.Connection(stim[0, :], cost_north[0:3])
+            nengo.Connection(ghosts[0], cost_north[0])
+			nengo.Connection(food[0], cost_north[1])
+			nengo.Connection(power[0], cost_north[2])
+			nengo.Connection(wall[0], cost_north[3])
             nengo.Connection(powered_up, cost_north[4])
-
-            nengo.Connection(stim[1, :], cost_east[0:3])
+			
+			nengo.Connection(ghosts[1], cost_east[0])
+			nengo.Connection(food[1], cost_east[1])
+			nengo.Connection(power[1], cost_east[2])
+			nengo.Connection(wall[1], cost_east[3])
             nengo.Connection(powered_up, cost_east[4])
-
-            nengo.Connection(stim[2, :], cost_south[0:3])
+			
+			nengo.Connection(ghosts[2], cost_south[0])
+			nengo.Connection(food[2], cost_south[1])
+			nengo.Connection(power[2], cost_south[2])
+			nengo.Connection(wall[2], cost_south[3])
             nengo.Connection(powered_up, cost_south[4])
-
-            nengo.Connection(stim[3, :], cost_west[0:3])
+			
+			nengo.Connection(ghosts[3], cost_west[0])
+			nengo.Connection(food[3], cost_west[1])
+			nengo.Connection(power[3], cost_west[2])
+			nengo.Connection(wall[3], cost_west[3])
             nengo.Connection(powered_up, cost_west[4])
 
             def cost_fun(state, powered):
