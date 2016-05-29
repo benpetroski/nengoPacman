@@ -294,6 +294,8 @@ class ClassicGameRules:
 
     def lose( self, state, game ):
         if not self.quiet: print "Pacman died! Score: %d" % state.data.score
+        while(True):
+            continue
         game.gameOver = True
 
     def getProgress(self, game):
