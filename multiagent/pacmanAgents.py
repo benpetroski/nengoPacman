@@ -68,7 +68,7 @@ class GreedyAgent(Agent):
 class NengoAgent(Agent):
     def __init__(self):
         # [0,1,2,3] => [north,east,south,west]
-        N = 400  # number of neurons per ensemble
+        N = 1000  # number of neurons per ensemble
         tau = 0.1  # synapse time constant for probe
         self.T = 1  # length of nengo simulation
         self.powered_up_var = 1
@@ -86,10 +86,10 @@ class NengoAgent(Agent):
             powered_up = nengo.Node(lambda t: self.powered_up_var)  # -1 if powered up, 1 if not
             output = nengo.Ensemble(N, dimensions=4,radius=10)
 
-            cost_north = nengo.Ensemble(N, dimensions=4,radius=10)
-            cost_east = nengo.Ensemble(N, dimensions=4,radius=10)
-            cost_south = nengo.Ensemble(N, dimensions=4,radius=10)
-            cost_west = nengo.Ensemble(N, dimensions=4,radius=10)
+            cost_north = nengo.Ensemble(N, dimensions=4)
+            cost_east = nengo.Ensemble(N, dimensions=4)
+            cost_south = nengo.Ensemble(N, dimensions=4)
+            cost_west = nengo.Ensemble(N, dimensions=4)
 
             nengo.Connection(ghosts[0], cost_north[0])
             nengo.Connection(food[0], cost_north[1])
@@ -122,23 +122,16 @@ class NengoAgent(Agent):
             nengo.Connection(cost_south, output[2], function=cost_fun)
             nengo.Connection(cost_west, output[3], function=cost_fun)
 
+            self.ghosts_p = nengo.Probe(ghosts, synapse=tau)
+            self.food_p = nengo.Probe(food, synapse=tau)
+            self.power_p = nengo.Probe(power, synapse=tau)
+            self.powered_up_p = nengo.Probe(powered_up, synapse=tau)
             self.output_cost = nengo.Probe(output, synapse=tau)
 
         self.sim = nengo.Simulator(self.model)
         self.sim.run(3, progress_bar=False)
         # should only need to set stim.output= lambda t: input_state for each new board state and then sim.run(T,progress_bar= False) in the getAction method
         # pretty sure we only need one call to sim= nengo.Simulator(model). Will need to pass model (for model.stim) and sim to getAction method somehow
-
-    def butter_bandpass(self, highcut, fs, order=4):
-        nyq = 0.5 * fs
-        high = highcut / nyq
-        b, a = butter(order, high, btype='high')
-        return b, a
-
-    def butter_bandpass_filter(self, data, highcut, fs, order=4):
-        b, a = self.butter_bandpass(highcut, fs, order=order)
-        y = lfilter(b, a, data, axis=0)
-        return y
 
     def getAction(self, state):
         self.state = state
@@ -175,15 +168,19 @@ class NengoAgent(Agent):
             self.powered_up_var = 1
         for i in xrange(4):
             for j in xrange(4):
+                if j >= 1:
+                    scale = 0.5
+                elif j < 1:
+                    scale = 1
                 if surroundingGroups[i][j] in self.state.getGhostPositions():
-                    self.input_state[i, 0] += 1
+                    self.input_state[i, 0] += scale*1
                     print i, j, 'poop there is a ghost'
                 if surroundingGroups[i][j] in self.state.getCapsules():
-                    self.input_state[i, 2] += 1
+                    self.input_state[i, 2] += scale*1
                     print i, j, 'OMG a capsule'
                 try:
                     if self.state.hasFood(int(surroundingGroups[i][j][0]), int(surroundingGroups[i][j][1])):
-                        self.input_state[i, 1] += 1
+                        self.input_state[i, 1] += scale*1
                         print i, j, 'yum food'
                 except IndexError as e:
                     continue
@@ -201,10 +198,24 @@ class NengoAgent(Agent):
         self.t = self.sim.trange()
         plt.ion()
         plt.clf()
+        plt.subplot(1,2,1)
         plt.plot(self.t, self.output_new[:,0], 'r', label='north')
         plt.plot(self.t, self.output_new[:,1], 'g', label='east')
         plt.plot(self.t, self.output_new[:,2], 'b', label='south')
         plt.plot(self.t, self.output_new[:,3], 'y', label='west')
+        plt.legend(loc=2)
+        plt.draw()
+        plt.show()
+
+
+        self.expected_cost = self.sim.data[self.powered_up_p]*50*self.sim.data[self.ghosts_p] - 4*self.sim.data[self.food_p] - 10*self.sim.data[self.power_p]
+
+        plt.ion()
+        plt.subplot(1,2,2)
+        plt.plot(self.t, self.expected_cost[:,0], 'r', label='cost-north')
+        plt.plot(self.t, self.expected_cost[:,1], 'g', label='cost-east')
+        plt.plot(self.t, self.expected_cost[:,2], 'b', label='cost-south')
+        plt.plot(self.t, self.expected_cost[:,3], 'y', label='cost-west')
         plt.legend(loc=2)
         plt.draw()
         plt.show()
