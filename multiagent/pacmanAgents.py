@@ -114,7 +114,7 @@ class NengoAgent(Agent):
             def cost_fun(x):
                 # state= [ghosts,food,power]
                 ghosts, food, power, powered = x
-                return powered*40*ghosts - 4*food - 10*power
+                return powered*50*ghosts - 4*food - 10*power
                 # return powered + ghosts + food + power
 
             nengo.Connection(cost_north, output[0], function=cost_fun)
@@ -168,18 +168,19 @@ class NengoAgent(Agent):
         # print self.state.getGhostPositions()
         # print self.state.hasFood(x, y)
 
-        # print state.data.agentStates[1].scaredTimer
-        # if state.data.agentStates[1].scaredTimer > 0:
-        #     self.powered_up_var = -1
-        # else:
-        #     self.powered_up_var = 1
-
         print self.state.getPacmanPosition()
+        if state.data.agentStates[1].scaredTimer > 0:
+            self.powered_up_var = -1
+        else:
+            self.powered_up_var = 1
         for i in xrange(4):
             for j in xrange(4):
                 if surroundingGroups[i][j] in self.state.getGhostPositions():
                     self.input_state[i, 0] += 1
                     print i, j, 'poop there is a ghost'
+                if surroundingGroups[i][j] in self.state.getCapsules():
+                    self.input_state[i, 2] += 1
+                    print i, j, 'OMG a capsule'
                 try:
                     if self.state.hasFood(int(surroundingGroups[i][j][0]), int(surroundingGroups[i][j][1])):
                         self.input_state[i, 1] += 1
